@@ -74,8 +74,10 @@ every 5 seconds.
   (`--envs`). Watch "steps/s" in the viewer. A few hundred million steps (`--steps`, default 3e8)
   is a realistic amount of training. Expect it to take a while, from hours to days depending on
   the machine.
-- **Viewer from another computer:** `node ui/server.js --host 0.0.0.0`, then open
-  `http://<this machine's IP>:8000`.
+- **Viewer from another computer** (e.g. over Tailscale): train with
+  `python train/ppo.py --run first --viewer <this machine's Tailscale IP>` (it starts the viewer
+  too), then open `http://<that IP>:8000` on the other computer. Or run the viewer on its own:
+  `node ui/server.js --host <IP>`.
 
 Everything for a run goes in `runs/<name>/`: `metrics.jsonl`, `eval.jsonl`, `ckpt.pt`,
 `model.json` (the trained weights for JavaScript, rewritten every 20 updates), `replays/`.

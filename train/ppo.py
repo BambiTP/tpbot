@@ -2,6 +2,7 @@
 
     python train/ppo.py --run first            # start (or resume) runs/first
     python train/ppo.py --run first --steps 2e8 --workers 12
+    python train/ppo.py --run first --viewer 100.x.y.z     # also serve the viewer on that address
 
 Writes to runs/<run>/: metrics.jsonl (one line per update, for the UI), ckpt.pt (resume),
 model.json (weights for nav/model.js, every --save-every updates), replays/ (episodes for the UI),
@@ -44,6 +45,8 @@ def parse():
     p.add_argument("--replay-every", type=int, default=4, help="episodes of game 0 between saved replays")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    p.add_argument("--viewer", metavar="HOST", help="also start the training viewer on this address (e.g. your Tailscale IP)")
+    p.add_argument("--viewer-port", type=int, default=8000)
     return p.parse_args()
 
 
@@ -100,6 +103,10 @@ def main():
     with open(os.path.join(run_dir, "config.json"), "w") as f:
         json.dump(vars(a), f, indent=1)
 
+    viewer = None
+    if a.viewer:
+        viewer = subprocess.Popen(["node", os.path.join(ROOT, "ui", "server.js"), "--host", a.viewer, "--port", str(a.viewer_port)], cwd=ROOT)
+        print(f"viewer: http://{a.viewer}:{a.viewer_port}")
     env = VecEnv(a.workers, a.envs, seed=a.seed + update, replay_dir=os.path.join(run_dir, "replays"), replay_every=a.replay_every)
     N, T = env.num_envs, a.rollout
     print(f"{a.workers} simulators x {a.envs} games = {N} games, {N * T:,} steps per update, device {dev}")
@@ -218,6 +225,8 @@ def main():
             eval_proc = subprocess.Popen(["node", os.path.join(ROOT, "sim", "eval.js"), "--run", a.run, "--episodes", "100",
                                           "--append"], cwd=ROOT, stdout=subprocess.DEVNULL)
     env.close()
+    if viewer:
+        viewer.terminate()
 
 
 if __name__ == "__main__":
