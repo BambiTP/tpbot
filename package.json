@@ -1,0 +1,26 @@
+{
+  "name": "tpbot",
+  "version": "1.0.0",
+  "description": "A TagPro bot that gets its ball dead on any target in view as fast as possible: a neural network trained on the real engine, plus an exact strike planner.",
+  "main": "nav/navigator.js",
+  "scripts": {
+    "test": "node test/physics.test.js && node test/planner.test.js && node test/model.test.js",
+    "ui": "node ui/server.js",
+    "eval": "node sim/eval.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BambiTP/tpbot.git"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BambiTP/tpbot/issues"
+  },
+  "homepage": "https://github.com/BambiTP/tpbot#readme",
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

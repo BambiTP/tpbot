@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tpbot training</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f3f2ee; --surface-1: #fcfcfb; --border: #dcdad3;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #85837d; --grid: #e7e5df;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --floor: #d9d7cf; --wall: #77756f; --void: #2c2c2a; --ball: #e34948; --target: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --border: #33332f;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8d8c84; --grid: #2a2a27;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --floor: #3a3a36; --wall: #6e6c66; --void: #0c0c0b; --ball: #e66767; --target: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --border: #33332f;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8d8c84; --grid: #2a2a27;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --floor: #3a3a36; --wall: #6e6c66; --void: #0c0c0b; --ball: #e66767; --target: #3987e5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface-1); position: sticky; top: 0; z-index: 2; }
+header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+select, button, input[type=range] { font: inherit; color: inherit; }
+select, button { background: var(--surface-0); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--text-muted); }
+.status { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--text-muted); vertical-align: 1px; }
+.dot.live { background: var(--s3); }
+main { padding: 16px 20px 40px; max-width: 1500px; margin: 0 auto; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.tile .label { color: var(--text-secondary); font-size: 12.5px; }
+.tile .value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .sub { color: var(--text-muted); font-size: 12px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.card h2 { font-size: 14px; margin: 0 0 2px; font-weight: 600; }
+.card .note { color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); margin: 4px 0 2px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: 3px; }
+.chart { position: relative; height: 170px; }
+.chart canvas { width: 100%; height: 100%; display: block; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.18); white-space: nowrap; display: none; z-index: 1; font-variant-numeric: tabular-nums; }
+.tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.replay canvas { width: 100%; display: block; border-radius: 6px; background: var(--void); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 6px; }
+.controls input[type=range] { flex: 1; min-width: 120px; }
+.info { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.info b { color: var(--text-primary); font-weight: 600; }
+.empty { color: var(--text-muted); padding: 30px 0; text-align: center; }
+label.chk { color: var(--text-secondary); font-size: 13px; display: inline-flex; gap: 5px; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>tpbot training</h1>
+  <select id="run" aria-label="Run"></select>
+  <span class="status" id="status"><span class="dot"></span>loading…</span>
+  <span style="flex:1"></span>
+  <label class="chk"><input type="checkbox" id="smooth" checked> Smooth</label>
+  <button id="theme" title="Light / dark">Theme</button>
+</header>
+<main>
+  <div class="tiles" id="tiles"></div>
+  <div class="layout">
+    <section class="charts" id="charts"></section>
+    <section class="card replay">
+      <h2>Episode replay</h2>
+      <div class="note">Red: the bot. Blue: the target. The dot ahead of the ball is its leading point.</div>
+      <canvas id="field" height="420"></canvas>
+      <div class="controls">
+        <button id="play">Pause</button>
+        <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Frame">
+        <select id="speed" aria-label="Speed"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option></select>
+      </div>
+      <div class="controls">
+        <button id="prev">◀ Older</button>
+        <button id="next">Newer ▶</button>
+        <label class="chk"><input type="checkbox" id="follow" checked> Follow latest</label>
+        <span class="info" id="rinfo"></span>
+      </div>
+      <div class="info" id="rresult"></div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmtStep = (s) => s >= 1e9 ? (s / 1e9).toFixed(2) + 'B' : s >= 1e6 ? (s / 1e6).toFixed(1) + 'M' : s >= 1e3 ? (s / 1e3).toFixed(0) + 'k' : String(s);
+const pct = (v) => v == null || isNaN(v) ? '–' : (v * 100).toFixed(1) + '%';
+const fix = (d) => (v) => v == null || isNaN(v) ? '–' : v.toFixed(d);
+let state = { run: null, metrics: [], evals: [], replays: [], replayIdx: 0 };
+
+// ---------- theme ----------
+$('theme').onclick = () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('tpbot-theme', document.documentElement.dataset.theme); } catch (e) { /* none */ }
+  drawAll(); drawReplay();
+};
+try { const t = localStorage.getItem('tpbot-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* none */ }
+
+// ---------- charts ----------
+const CHARTS = [
+  { title: 'Outcomes', note: 'Share of episodes. Hit: within 2 px dead on. Graze: touched off line.', fmt: pct, min: 0, max: 1,
+    series: [['hit_rate', 'Hit', '--s1'], ['graze_rate', 'Graze', '--s2'], ['pop_rate', 'Popped', '--s3'], ['timeout_rate', 'Timeout', '--s4']] },
+  { title: 'Miss distance (px)', note: 'How far the target was from the ball’s line of travel at contact. Lower is better.', fmt: fix(1), min: 0,
+    series: [['miss_px_median', 'Median', '--s1'], ['miss_px_mean', 'Mean', '--s2']] },
+  { title: 'Time to hit (s)', note: 'Dead-on hits only. Lower is faster.', fmt: fix(2), min: 0, series: [['hit_time', 'Seconds', '--s1']] },
+  { title: 'Path speed (m/s)', note: 'Shortest path length ÷ time taken. 2.5 is top speed without boosts.', fmt: fix(2), min: 0, series: [['path_speed', 'm/s', '--s1']] },
+  { title: 'Hit rate by target', note: 'Still point, moving point, moving ball.', fmt: pct, min: 0, max: 1,
+    series: [['hit_rate_point', 'Point', '--s1'], ['hit_rate_movingPoint', 'Moving point', '--s2'], ['hit_rate_ball', 'Ball', '--s3']] },
+  { title: 'Eval hit rate', note: 'Fixed test episodes, greedy. With and without the strike planner.', fmt: pct, min: 0, max: 1, source: 'eval',
+    series: [['network.hit_rate', 'Network', '--s1'], ['assisted.hit_rate', 'Network + planner', '--s2']] },
+  { title: 'Eval miss (px, median)', note: 'Fixed test episodes.', fmt: fix(2), min: 0, source: 'eval',
+    series: [['network.miss_px_median', 'Network', '--s1'], ['assisted.miss_px_median', 'Network + planner', '--s2']] },
+  { title: 'Policy entropy', note: 'Exploration. Falls as the policy gets sure of itself.', fmt: fix(2), min: 0, series: [['entropy', 'Entropy', '--s1']] },
+  { title: 'Approx. KL per update', note: 'Above ~0.05 for long means updates are too big.', fmt: fix(4), min: 0, series: [['approx_kl', 'KL', '--s1']] },
+];
+const get = (row, key) => key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), row);
+
+function smoothRows(rows, keys) {
+  if (!$('smooth').checked || rows.length < 5) return rows;
+  const a = 0.15, out = [], acc = {};
+  for (const r of rows) {
+    const o = { ...r };
+    for (const k of keys) {
+      const v = get(r, k);
+      if (typeof v !== 'number' || isNaN(v)) continue;
+      acc[k] = acc[k] == null ? v : acc[k] + a * (v - acc[k]);
+      setPath(o, k, acc[k]);
+    }
+    out.push(o);
+  }
+  return out;
+}
+function setPath(o, key, v) { const ks = key.split('.'); let t = o; for (let i = 0; i < ks.length - 1; i++) t = t[ks[i]] = { ...(t[ks[i]] || {}) }; t[ks[ks.length - 1]] = v; }
+
+function buildCharts() {
+  const box = $('charts'); box.innerHTML = '';
+  for (const c of CHARTS) {
+    const el = document.createElement('div'); el.className = 'card';
+    el.innerHTML = `<h2>${c.title}</h2><div class="note">${c.note}</div>` +
+      (c.series.length > 1 ? `<div class="legend">${c.series.map((s) => `<span><i style="background:var(${s[2]})"></i>${s[1]}</span>`).join('')}</div>` : '') +
+      `<div class="chart"><canvas></canvas><div class="tip"></div></div>`;
+    box.appendChild(el);
+    c.canvas = el.querySelector('canvas'); c.tip = el.querySelector('.tip');
+    c.canvas.addEventListener('mousemove', (e) => hover(c, e));
+    c.canvas.addEventListener('mouseleave', () => { c.hoverX = null; c.tip.style.display = 'none'; drawChart(c); });
+  }
+}
+
+function drawChart(c) {
+  const cv = c.canvas, dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
+  const raw = c.source === 'eval' ? state.evals : state.metrics;
+  const rows = smoothRows(raw, c.series.map((s) => s[0]));
+  c.rows = rows;
+  const L = 44, R = 64, T = 8, B = 20, pw = W - L - R, ph = H - T - B;
+  g.font = '11px system-ui, sans-serif';
+  if (!rows.length) { g.fillStyle = css('--text-muted'); g.fillText(c.source === 'eval' ? 'No evals yet (one every 100 updates)' : 'No data yet', L, T + ph / 2); return; }
+  const xs = rows.map((r) => r.step || 0), x0 = Math.min(...xs), x1 = Math.max(...xs, x0 + 1);
+  let lo = c.min ?? Infinity, hi = c.max ?? -Infinity;
+  for (const r of rows) for (const s of c.series) { const v = get(r, s[0]); if (typeof v === 'number' && !isNaN(v)) { if (c.min == null) lo = Math.min(lo, v); if (c.max == null) hi = Math.max(hi, v); } }
+  if (lo === Infinity) lo = 0; if (hi === -Infinity || hi <= lo) hi = lo + 1;
+  if (c.min == null) lo -= (hi - lo) * 0.05;
+  if (c.max == null) hi += (hi - lo) * 0.08;
+  const X = (v) => L + (v - x0) / (x1 - x0) * pw, Y = (v) => T + ph - (v - lo) / (hi - lo) * ph;
+  c.X = X; c.x0 = x0; c.x1 = x1; c.L = L; c.pw = pw; c.Y = Y;
+  // grid + axes (recessive)
+  g.strokeStyle = css('--grid'); g.lineWidth = 1; g.fillStyle = css('--text-muted');
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (hi - lo) * i / 4, y = Math.round(Y(v)) + 0.5;
+    g.beginPath(); g.moveTo(L, y); g.lineTo(L + pw, y); g.stroke();
+    g.textAlign = 'right'; g.fillText(c.fmt(v), L - 6, y + 4);
+  }
+  g.textAlign = 'center';
+  for (let i = 0; i <= 3; i++) { const v = x0 + (x1 - x0) * i / 3; g.fillText(fmtStep(Math.round(v)), X(v), H - 5); }
+  // lines
+  const ends = [];
+  for (const s of c.series) {
+    g.strokeStyle = css(s[2]); g.lineWidth = 2; g.lineJoin = 'round'; g.beginPath();
+    let pen = false, last = null;
+    for (const r of rows) {
+      const v = get(r, s[0]);
+      if (typeof v !== 'number' || isNaN(v)) { pen = false; continue; }
+      const px = X(r.step || 0), py = Y(v);
+      if (pen) g.lineTo(px, py); else g.moveTo(px, py);
+      pen = true; last = { px, py, v, s };
+    }
+    g.stroke();
+    if (rows.length === 1 && last) { g.fillStyle = css(s[2]); g.beginPath(); g.arc(last.px, last.py, 4, 0, 7); g.fill(); }
+    if (last) ends.push(last);
+  }
+  // direct labels at the line ends (text in text colours), nudged apart
+  ends.sort((a, b) => a.py - b.py);
+  for (let i = 1; i < ends.length; i++) if (ends[i].py - ends[i - 1].py < 13) ends[i].py = ends[i - 1].py + 13;
+  for (let i = ends.length - 1; i >= 0; i--) { const lim = (i === ends.length - 1 ? T + ph : ends[i + 1].py - 13); if (ends[i].py > lim) ends[i].py = lim; }
+  g.textAlign = 'left';
+  for (const e of ends) {
+    g.fillStyle = css(e.s[2]); g.beginPath(); g.arc(L + pw + 6, e.py, 3, 0, 7); g.fill();
+    g.fillStyle = css('--text-secondary'); g.fillText(c.fmt(e.v), L + pw + 12, e.py + 4);
+  }
+  // crosshair
+  if (c.hoverX != null) {
+    g.strokeStyle = css('--text-muted'); g.lineWidth = 1; g.setLineDash([3, 3]);
+    g.beginPath(); g.moveTo(c.hoverX + 0.5, T); g.lineTo(c.hoverX + 0.5, T + ph); g.stroke(); g.setLineDash([]);
+    const r = c.hoverRow;
+    for (const s of c.series) { const v = get(r, s[0]); if (typeof v !== 'number' || isNaN(v)) continue; g.fillStyle = css(s[2]); g.strokeStyle = css('--surface-1'); g.lineWidth = 2; g.beginPath(); g.arc(c.hoverX, Y(v), 4.5, 0, 7); g.fill(); g.stroke(); }
+  }
+}
+
+function hover(c, e) {
+  if (!c.rows || !c.rows.length || !c.X) return;
+  const rect = c.canvas.getBoundingClientRect(), mx = e.clientX - rect.left;
+  let best = c.rows[0];
+  for (const r of c.rows) if (Math.abs(c.X(r.step || 0) - mx) < Math.abs(c.X(best.step || 0) - mx)) best = r;
+  c.hoverX = c.X(best.step || 0); c.hoverRow = best;
+  drawChart(c);
+  c.tip.innerHTML = `<div style="color:var(--text-muted)">step ${fmtStep(best.step || 0)}${best.update ? ' · update ' + best.update : ''}</div>` +
+    c.series.map((s) => `<div><i style="background:var(${s[2]})"></i>${s[1]}: <b>${c.fmt(get(best, s[0]))}</b></div>`).join('');
+  c.tip.style.display = 'block';
+  const tw = c.tip.offsetWidth;
+  c.tip.style.left = Math.min(Math.max(0, c.hoverX + 12), rect.width - tw) + 'px';
+  c.tip.style.top = '6px';
+}
+
+function drawAll() { for (const c of CHARTS) drawChart(c); drawTiles(); }
+
+function drawTiles() {
+  const rows = state.metrics.slice(-10);
+  const avg = (k) => { const v = rows.map((r) => r[k]).filter((x) => typeof x === 'number' && !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const last = state.metrics[state.metrics.length - 1];
+  const ev = state.evals[state.evals.length - 1];
+  const tiles = [
+    ['Dead-on hit rate', pct(avg('hit_rate')), 'last 10 updates'],
+    ['Median miss', avg('miss_px_median') == null ? '–' : avg('miss_px_median').toFixed(1) + ' px', 'at contact'],
+    ['Time to hit', avg('hit_time') == null ? '–' : avg('hit_time').toFixed(2) + ' s', 'dead-on hits'],
+    ['Path speed', avg('path_speed') == null ? '–' : avg('path_speed').toFixed(2) + ' m/s', 'shortest path ÷ time'],
+    ['Popped', pct(avg('pop_rate')), 'spikes, gates'],
+    ['Eval (with planner)', ev ? pct(ev.assisted.hit_rate) : '–', ev ? 'miss ' + fix(2)(ev.assisted.miss_px_median) + ' px median' : 'none yet'],
+    ['Steps', last ? fmtStep(last.step) : '–', last ? Math.round(last.fps).toLocaleString() + ' steps/s' : ''],
+  ];
+  $('tiles').innerHTML = tiles.map(([l, v, s]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join('');
+}
+
+// ---------- data ----------
+async function json(url) { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }
+
+async function loadRuns() {
+  const runs = await json('/api/runs');
+  const sel = $('run'), cur = sel.value || (() => { try { return localStorage.getItem('tpbot-run'); } catch (e) { return null; } })();
+  sel.innerHTML = runs.map((r) => `<option value="${r.name}">${r.name}</option>`).join('') || '<option value="">no runs yet</option>';
+  if (runs.some((r) => r.name === cur)) sel.value = cur;
+  state.runs = runs;
+  return sel.value;
+}
+
+async function refresh() {
+  try {
+    const run = await loadRuns();
+    if (!run) { $('status').innerHTML = '<span class="dot"></span>No runs yet: start python train/ppo.py --run NAME'; return; }
+    const changed = run !== state.run;
+    state.run = run;
+    [state.metrics, state.evals] = await Promise.all([json('/api/metrics?run=' + run), json('/api/eval?run=' + run)]);
+    const last = state.metrics[state.metrics.length - 1];
+    const age = last ? (Date.now() / 1000 - last.time) : Infinity;
+    const live = age < 120;
+    $('status').innerHTML = `<span class="dot ${live ? 'live' : ''}"></span>` + (last
+      ? `${live ? 'Training' : 'Stopped'} · update ${last.update} · ${fmtStep(last.step)} steps · ${age < 90 ? Math.round(age) + ' s ago' : new Date(last.time * 1000).toLocaleString()}`
+      : 'Waiting for the first update…');
+    drawAll();
+    const files = await json('/api/replays?run=' + run);
+    const newest = files[0] !== state.replays[0];
+    state.replays = files;
+    if (changed) state.replayIdx = 0;
+    if ((changed || newest) && $('follow').checked) { state.replayIdx = 0; if (files.length && !replay.playing || changed) loadReplay(); }
+    else if (!replay.data && files.length) loadReplay();
+  } catch (e) { $('status').innerHTML = '<span class="dot"></span>' + e.message; }
+}
+$('run').onchange = () => { try { localStorage.setItem('tpbot-run', $('run').value); } catch (e) { /* none */ } state.run = null; refresh(); };
+$('smooth').onchange = drawAll;
+addEventListener('resize', () => { drawAll(); drawReplay(); });
+
+// ---------- replay ----------
+const replay = { data: null, frame: 0, playing: true, tiles: null, applied: 0, acc: 0, lastT: 0 };
+const TILE = 0.4, BR = 0.19;
+
+async function loadReplay() {
+  const f = state.replays[state.replayIdx];
+  if (!f) return;
+  try { replay.data = await json(`/api/replay?run=${state.run}&file=${f}`); } catch (e) { return; }
+  replay.frame = 0; replay.playing = true; $('play').textContent = 'Pause';
+  $('scrub').max = replay.data.frames.length - 1;
+  resetTiles();
+  const d = replay.data, xs = [], ys = [];
+  for (const fr of d.frames) { xs.push(fr[0], fr[4]); ys.push(fr[1], fr[5]); }
+  // view: the episode's bounding box plus a margin, at least a viewport
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2 / TILE, cy = (Math.min(...ys) + Math.max(...ys)) / 2 / TILE;
+  const w = Math.max(33, (Math.max(...xs) - Math.min(...xs)) / TILE + 8), h = Math.max(21, (Math.max(...ys) - Math.min(...ys)) / TILE + 6);
+  replay.view = { x0: cx - w / 2, y0: cy - h / 2, w, h };
+  $('rinfo').textContent = `${state.replayIdx + 1} of ${state.replays.length}`;
+  const r = d.result || {};
+  const kinds = { point: 'still point', movingPoint: 'moving point', ball: 'moving ball' };
+  $('rresult').innerHTML = `Map <b>${d.map}</b> · target <b>${kinds[d.kind] || d.kind}</b> · result <b>${r.result || '?'}</b>` +
+    (r.b != null ? ` · miss <b>${(r.b * 100).toFixed(2)} px</b>` : '') + (r.time != null ? ` · <b>${r.time.toFixed(2)} s</b>` : ` · ${(r.ticks / 60 || 0).toFixed(2)} s`) +
+    (r.speed != null ? ` · impact <b>${r.speed.toFixed(2)} m/s</b>` : '');
+}
+function resetTiles() { replay.tiles = replay.data.tiles.map((c) => c.slice()); replay.applied = 0; }
+function applyTiles(upto) {
+  if (upto < replay.applied) resetTiles();
+  const log = replay.data.tileLog || [];
+  for (; replay.applied < Math.min(upto, log.length); replay.applied++) { const [x, y, v] = log[replay.applied]; replay.tiles[x][y] = v; }
+}
+
+function drawTile(g, t, px, py, s) {
+  const v = parseFloat(t), f = Math.floor(v), str = typeof t === 'string' && String(Number(t)) !== t;
+  const fill = (c) => { g.fillStyle = c; g.fillRect(px, py, s, s); };
+  const circle = (c, r) => { g.fillStyle = c; g.beginPath(); g.arc(px + s / 2, py + s / 2, r * s, 0, 7); g.fill(); };
+  if (v === 0) return fill(css('--void'));
+  fill(css('--floor'));
+  if (v === 1) return fill(css('--wall'));
+  if (f === 1) { // 45 degree walls
+    const pts = { 1: [[0, 1], [0, 0], [1, 1]], 2: [[0, 0], [1, 0], [0, 1]], 3: [[1, 0], [1, 1], [0, 0]], 4: [[1, 1], [0, 1], [1, 0]] }[Math.round((v - 1) * 10)];
+    g.fillStyle = css('--wall'); g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo : g.moveTo).call(g, px + a * s, py + b * s)); g.fill(); return;
+  }
+  const used = str || (v !== f && f !== 9 && f !== 1);
+  switch (f) {
+    case 3: return circle('#d33', 0.3);
+    case 4: return circle('#36c', 0.3);
+    case 5: return circle(used ? 'rgba(230,200,0,.25)' : '#e6c800', 0.35);
+    case 6: return circle('#2a2', 0.3);
+    case 7: g.fillStyle = '#222'; g.beginPath(); g.arc(px + s / 2, py + s / 2, 0.35 * s, 0, 7); g.fill(); g.strokeStyle = '#999'; g.lineWidth = 1; g.stroke(); return;
+    case 8: return circle('#b97a57', 0.2);
+    case 9: if (v === 9.1) fill('rgba(0,160,0,.55)'); else if (v === 9.2) fill('rgba(220,40,40,.45)'); else if (v === 9.3) fill('rgba(40,80,220,.45)'); else { g.strokeStyle = 'rgba(0,160,0,.6)'; g.strokeRect(px + 1, py + 1, s - 2, s - 2); } return;
+    case 10: return circle(used ? 'rgba(255,128,0,.25)' : '#ff8000', 0.33);
+    case 11: return fill('rgba(220,60,60,.28)');
+    case 12: return fill('rgba(60,90,220,.28)');
+    case 13: case 24: case 25: g.strokeStyle = f === 24 ? '#c30' : f === 25 ? '#06c' : '#a0a'; g.lineWidth = 2; g.beginPath(); g.arc(px + s / 2, py + s / 2, 0.35 * s, 0, 7); g.stroke(); return;
+    case 14: return circle(used ? 'rgba(255,115,115,.25)' : '#ff7373', 0.35);
+    case 15: return circle(used ? 'rgba(115,115,255,.25)' : '#7373ff', 0.35);
+    case 16: return circle('#cc0', 0.3);
+    case 17: return fill('rgba(185,0,0,.35)');
+    case 18: return fill('rgba(25,0,148,.35)');
+    case 22: return circle('#202020', 0.4);
+    case 23: return fill('rgba(220,220,186,.35)');
+    default: return undefined;
+  }
+}
+
+function drawReplay() {
+  const cv = $('field'), d = replay.data;
+  const dpr = devicePixelRatio || 1, W = cv.clientWidth;
+  if (!d) { cv.width = W * dpr; cv.height = 300 * dpr; cv.style.height = '300px'; const g = cv.getContext('2d'); g.scale(dpr, dpr); g.fillStyle = '#888'; g.font = '13px system-ui'; g.fillText('No replays yet', 16, 30); return; }
+  const v = replay.view, s = W / v.w, H = v.h * s;
+  cv.style.height = H + 'px'; cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d'); g.scale(dpr, dpr);
+  const fr = d.frames[replay.frame];
+  applyTiles(fr[7]);
+  g.fillStyle = css('--void'); g.fillRect(0, 0, W, H);
+  const tx0 = Math.floor(v.x0), ty0 = Math.floor(v.y0);
+  for (let x = tx0; x <= v.x0 + v.w + 1; x++) for (let y = ty0; y <= v.y0 + v.h + 1; y++) {
+    if (x < 0 || y < 0 || x >= d.W || y >= d.H) continue;
+    drawTile(g, replay.tiles[x][y], (x - 0.5 - v.x0) * s, (y - 0.5 - v.y0) * s, s + 0.5);
+  }
+  const P = (mx, my) => [(mx / TILE - v.x0) * s, (my / TILE - v.y0) * s];
+  // trails
+  const trail = (ix, iy, color) => {
+    g.strokeStyle = color; g.globalAlpha = 0.7; g.lineWidth = 2; g.beginPath();
+    for (let i = 0; i <= replay.frame; i++) { const [px, py] = P(d.frames[i][ix], d.frames[i][iy]); i ? g.lineTo(px, py) : g.moveTo(px, py); }
+    g.stroke(); g.globalAlpha = 1;
+  };
+  trail(4, 5, css('--target')); trail(0, 1, css('--ball'));
+  // target
+  const [tx, ty] = P(fr[4], fr[5]);
+  if (d.targetR > 0) { g.fillStyle = css('--target'); g.beginPath(); g.arc(tx, ty, BR / TILE * s, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); }
+  g.strokeStyle = d.targetR > 0 ? '#fff' : css('--target'); g.lineWidth = 2;
+  g.beginPath(); g.moveTo(tx - 7, ty); g.lineTo(tx + 7, ty); g.moveTo(tx, ty - 7); g.lineTo(tx, ty + 7); g.stroke();
+  // ball + leading point
+  const [bx, by] = P(fr[0], fr[1]);
+  g.fillStyle = css('--ball'); g.beginPath(); g.arc(bx, by, BR / TILE * s, 0, 7); g.fill();
+  g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
+  const sp = Math.hypot(fr[2], fr[3]);
+  if (sp > 0.05) {
+    const [lx, ly] = P(fr[0] + fr[2] / sp * BR, fr[1] + fr[3] / sp * BR);
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(lx, ly, 3, 0, 7); g.fill();
+  }
+  // keys held
+  const a = fr[6];
+  if (a > 0) {
+    const dirs = [[0, 0], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]][a];
+    g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 2; g.beginPath();
+    const L = BR / TILE * s + 9; g.moveTo(bx, by); g.lineTo(bx + dirs[0] / Math.hypot(...dirs) * L, by + dirs[1] / Math.hypot(...dirs) * L); g.stroke();
+  }
+  g.fillStyle = 'rgba(255,255,255,.85)'; g.font = '12px system-ui'; g.fillText(`${(replay.frame / 60).toFixed(2)} s · ${sp.toFixed(2)} m/s`, 8, 16);
+  $('scrub').value = replay.frame;
+}
+
+function tickReplay(t) {
+  const dt = Math.min(100, t - (replay.lastT || t)); replay.lastT = t;
+  if (replay.data && replay.playing) {
+    replay.acc += dt * Number($('speed').value);
+    const step = 1000 / 60;
+    while (replay.acc >= step) {
+      replay.acc -= step;
+      if (replay.frame < replay.data.frames.length - 1) replay.frame++;
+      else { replay.playing = false; $('play').textContent = 'Replay'; setTimeout(() => { if ($('follow').checked && state.replayIdx === 0 && !replay.playing) { loadReplay(); } }, 1500); break; }
+    }
+    drawReplay();
+  }
+  requestAnimationFrame(tickReplay);
+}
+$('play').onclick = () => {
+  if (!replay.data) return;
+  if (!replay.playing && replay.frame >= replay.data.frames.length - 1) replay.frame = 0;
+  replay.playing = !replay.playing; $('play').textContent = replay.playing ? 'Pause' : 'Play';
+};
+$('scrub').oninput = () => { replay.frame = Number($('scrub').value); replay.playing = false; $('play').textContent = 'Play'; drawReplay(); };
+$('prev').onclick = () => { if (state.replayIdx < state.replays.length - 1) { state.replayIdx++; $('follow').checked = false; loadReplay(); } };
+$('next').onclick = () => { if (state.replayIdx > 0) { state.replayIdx--; loadReplay(); } if (state.replayIdx === 0) $('follow').checked = true; };
+
+buildCharts();
+refresh();
+setInterval(refresh, 5000);
+requestAnimationFrame(tickReplay);
+</script>
+</body>
+</html>
